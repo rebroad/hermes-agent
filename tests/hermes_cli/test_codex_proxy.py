@@ -32,6 +32,8 @@ class _FakeProc:
 def test_codex_proxy_launches_and_returns_local_base_url(monkeypatch, tmp_path):
     from hermes_cli import codex_proxy
 
+    auth_file = tmp_path / "auth.json"
+    auth_file.write_text(json.dumps({"tokens": {"access_token": "token-123"}}), encoding="utf-8")
     server_info = tmp_path / "server-info.json"
     server_info.write_text(json.dumps({"port": 43128}), encoding="utf-8")
     captured = {}
@@ -43,6 +45,7 @@ def test_codex_proxy_launches_and_returns_local_base_url(monkeypatch, tmp_path):
         return _FakeProc()
 
     monkeypatch.setenv("HERMES_CODEX_USE_PROXY", "1")
+    monkeypatch.setattr(codex_proxy, "_default_auth_file", lambda: auth_file)
     monkeypatch.setattr(codex_proxy, "shutil", SimpleNamespace(which=lambda _name: "/usr/bin/codex-responses-api-proxy"))
     monkeypatch.setattr(codex_proxy, "_server_info_path", lambda _fp: server_info)
     monkeypatch.setattr(codex_proxy.subprocess, "Popen", fake_popen)
@@ -51,6 +54,7 @@ def test_codex_proxy_launches_and_returns_local_base_url(monkeypatch, tmp_path):
 
     assert base_url == "http://127.0.0.1:43128"
     assert captured["cmd"][0].endswith("codex-responses-api-proxy")
+    assert "--auth-file" in captured["cmd"]
     assert "--upstream-url" in captured["cmd"]
     assert "https://chatgpt.com/backend-api/codex" in captured["cmd"]
     assert "--provider-id" in captured["cmd"]

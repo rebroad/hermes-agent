@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import hashlib
 import json
 import logging
 import os
@@ -25,6 +24,7 @@ _BINARY = "codex-responses-api-proxy"
 _DEFAULT_UPSTREAM_URL = "https://chatgpt.com/backend-api/codex"
 _ENV_PROXY_URL = "HERMES_CODEX_PROXY_URL"
 _ENV_PROXY_MODE = "HERMES_CODEX_USE_PROXY"
+_ENV_PROXY_AUTH_FILE = "HERMES_CODEX_PROXY_AUTH_FILE"
 _ENV_PROXY_UPSTREAM_URL = "HERMES_CODEX_PROXY_UPSTREAM_URL"
 _ENV_PROXY_PROVIDER_ID = "HERMES_CODEX_PROXY_PROVIDER_ID"
 _ENV_PROXY_SQLITE_HOME = "HERMES_CODEX_PROXY_SQLITE_HOME"
@@ -37,7 +37,7 @@ _DISABLE_VALUES = {"0", "false", "no", "off"}
 class _ProxyRuntime:
     process: subprocess.Popen[str]
     base_url: str
-    token_fingerprint: str
+    auth_file: Path
 
 
 _proxy_lock = threading.Lock()
@@ -49,8 +49,14 @@ def _normalize(value: str) -> str:
     return str(value or "").strip().rstrip("/")
 
 
-def _token_fingerprint(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8", errors="replace")).hexdigest()[:16]
+def _default_auth_file() -> Path:
+    override = _normalize(os.getenv(_ENV_PROXY_AUTH_FILE, ""))
+    if override:
+        return Path(override).expanduser()
+    codex_home = _normalize(os.getenv("CODEX_HOME", ""))
+    if codex_home:
+        return Path(codex_home).expanduser() / "auth.json"
+    return Path.home() / ".codex" / "auth.json"
 
 
 def _register_atexit() -> None:
@@ -104,18 +110,18 @@ def _shutdown_proxy() -> None:
             pass
 
 
-def _launch_proxy(token: str) -> Optional[_ProxyRuntime]:
+def _launch_proxy(auth_file: Path) -> Optional[_ProxyRuntime]:
     binary = shutil.which(_BINARY)
     if not binary:
         logger.warning("Codex proxy requested but %s is not on PATH", _BINARY)
         return None
 
-    token = token.strip()
-    if not token:
+    auth_file = auth_file.expanduser()
+    if not auth_file.is_file():
+        logger.warning("Codex proxy requested but auth file %s is missing", auth_file)
         return None
 
-    token_fp = _token_fingerprint(token)
-    server_info_path = _server_info_path(token_fp)
+    server_info_path = _server_info_path("proxy")
     try:
         server_info_path.unlink()
     except FileNotFoundError:
@@ -128,6 +134,8 @@ def _launch_proxy(token: str) -> Optional[_ProxyRuntime]:
     cmd = [
         binary,
         "--http-shutdown",
+        "--auth-file",
+        str(auth_file),
         "--upstream-url",
         upstream_url,
         "--server-info",
@@ -140,7 +148,7 @@ def _launch_proxy(token: str) -> Optional[_ProxyRuntime]:
         cmd.extend(["--sqlite-home", sqlite_home])
 
     popen_kwargs: dict[str, object] = {
-        "stdin": subprocess.PIPE,
+        "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
         "text": True,
@@ -151,20 +159,6 @@ def _launch_proxy(token: str) -> Optional[_ProxyRuntime]:
         proc = subprocess.Popen(cmd, **popen_kwargs)  # type: ignore[arg-type]
     except Exception as exc:
         logger.warning("Failed to launch Codex proxy: %s", exc)
-        return None
-
-    assert proc.stdin is not None
-    try:
-        proc.stdin.write(token)
-        if not token.endswith("\n"):
-            proc.stdin.write("\n")
-        proc.stdin.close()
-    except Exception as exc:
-        logger.warning("Failed to feed Codex proxy upstream token: %s", exc)
-        try:
-            proc.kill()
-        except Exception:
-            pass
         return None
 
     deadline = time.monotonic() + 10.0
@@ -179,7 +173,7 @@ def _launch_proxy(token: str) -> Optional[_ProxyRuntime]:
                 return _ProxyRuntime(
                     process=proc,
                     base_url=f"http://127.0.0.1:{port}",
-                    token_fingerprint=token_fp,
+                    auth_file=auth_file,
                 )
         except FileNotFoundError:
             pass
@@ -204,15 +198,15 @@ def resolve_codex_proxy_base_url(access_token: str) -> Optional[str]:
     if not _proxy_enabled():
         return None
 
-    token = str(access_token or "").strip()
-    if not token:
+    auth_file = _default_auth_file()
+    if not auth_file.is_file():
         return None
 
     global _proxy_runtime
     with _proxy_lock:
         runtime = _proxy_runtime
         if runtime is not None and runtime.process.poll() is None:
-            if runtime.token_fingerprint == _token_fingerprint(token):
+            if runtime.auth_file == auth_file:
                 return runtime.base_url
         _proxy_runtime = None
 
@@ -222,7 +216,7 @@ def resolve_codex_proxy_base_url(access_token: str) -> Optional[str]:
         except Exception:
             pass
 
-    new_runtime = _launch_proxy(token)
+    new_runtime = _launch_proxy(auth_file)
     if new_runtime is None:
         return None
 
