@@ -99,8 +99,13 @@ def test_fetch_from_api_keeps_supported_in_api_false_models(monkeypatch):
     class _FakeHttpx:
         @staticmethod
         def get(url, headers=None, timeout=None):
+            assert url.startswith("http://127.0.0.1:43128/")
             return _FakeResp()
 
+    monkeypatch.setattr(
+        "hermes_cli.codex_proxy.resolve_codex_proxy_base_url",
+        lambda _token: "http://127.0.0.1:43128",
+    )
     monkeypatch.setitem(sys.modules, "httpx", _FakeHttpx)
 
     models = codex_models._fetch_models_from_api(access_token="tok")

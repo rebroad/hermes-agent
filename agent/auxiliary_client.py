@@ -1885,6 +1885,8 @@ def _build_codex_client(model: str) -> Tuple[Optional[Any], Optional[str]]:
             "pass model explicitly (auxiliary.<task>.model in config.yaml)."
         )
         return None, None
+    from hermes_cli.codex_proxy import resolve_codex_proxy_base_url
+
     pool_present, entry = _select_pool_entry("openai-codex")
     if pool_present:
         codex_token = _pool_runtime_api_key(entry)
@@ -1900,6 +1902,14 @@ def _build_codex_client(model: str) -> Tuple[Optional[Any], Optional[str]]:
         if not codex_token:
             return None, None
         base_url = _CODEX_AUX_BASE_URL
+    proxy_base_url = resolve_codex_proxy_base_url(codex_token)
+    if not proxy_base_url:
+        logger.warning(
+            "Auxiliary client: Codex proxy unavailable; set HERMES_CODEX_PROXY_URL "
+            "or ensure codex-responses-api-proxy is on PATH"
+        )
+        return None, None
+    base_url = proxy_base_url
     logger.debug("Auxiliary client: Codex OAuth (%s via Responses API)", model)
     real_client = OpenAI(
         api_key=codex_token,
@@ -3222,6 +3232,7 @@ def resolve_provider_client(
                 "or auxiliary.<task>.model for per-task aux routing)."
             )
             return None, None
+        from hermes_cli.codex_proxy import resolve_codex_proxy_base_url
         if raw_codex:
             # Return the raw OpenAI client for callers that need direct
             # access to responses.stream() (e.g., the main agent loop).
@@ -3231,9 +3242,16 @@ def resolve_provider_client(
                                "but no Codex OAuth token found (run: hermes model)")
                 return None, None
             final_model = _normalize_resolved_model(model, provider)
+            proxy_base_url = resolve_codex_proxy_base_url(codex_token)
+            if not proxy_base_url:
+                logger.warning(
+                    "resolve_provider_client: openai-codex proxy unavailable "
+                    "(set HERMES_CODEX_PROXY_URL or ensure codex-responses-api-proxy is on PATH)"
+                )
+                return None, None
             raw_client = OpenAI(
                 api_key=codex_token,
-                base_url=_CODEX_AUX_BASE_URL,
+                base_url=proxy_base_url,
                 default_headers=_codex_cloudflare_headers(codex_token),
             )
             return (raw_client, final_model)

@@ -1286,8 +1286,14 @@ def _fetch_codex_oauth_context_lengths(access_token: str) -> Dict[str, int]:
         return _codex_oauth_context_cache
 
     try:
+        from hermes_cli.codex_proxy import resolve_codex_proxy_base_url
+
+        proxy_base_url = resolve_codex_proxy_base_url(access_token)
+        if not proxy_base_url:
+            logger.debug("Codex /models probe skipped: proxy unavailable")
+            return {}
         resp = requests.get(
-            "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0",
+            f"{proxy_base_url.rstrip('/')}/models?client_version=1.0.0",
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=10,
             verify=_resolve_requests_verify(),

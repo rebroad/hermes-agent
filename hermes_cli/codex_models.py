@@ -75,8 +75,15 @@ def _fetch_models_from_api(access_token: str) -> List[str]:
     """Fetch available models from the Codex API. Returns visible models sorted by priority."""
     try:
         import httpx
+        from hermes_cli.codex_proxy import resolve_codex_proxy_base_url
+
+        proxy_base_url = resolve_codex_proxy_base_url(access_token)
+        if not proxy_base_url:
+            logger.debug("Codex model discovery skipped: proxy unavailable")
+            return []
+        url = f"{proxy_base_url.rstrip('/')}/models?client_version=1.0.0"
         resp = httpx.get(
-            "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0",
+            url,
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=10,
         )

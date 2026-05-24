@@ -279,6 +279,7 @@ def test_auth_add_codex_oauth_persists_pool_entry(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
     _write_auth_store(tmp_path, {"version": 1, "providers": {}})
     token = _jwt_with_email("codex@example.com")
+    proxy_base_url = "http://127.0.0.1:43128"
     monkeypatch.setattr(
         "hermes_cli.auth._codex_device_code_login",
         lambda: {
@@ -286,7 +287,7 @@ def test_auth_add_codex_oauth_persists_pool_entry(tmp_path, monkeypatch):
                 "access_token": token,
                 "refresh_token": "refresh-token",
             },
-            "base_url": "https://chatgpt.com/backend-api/codex",
+            "base_url": proxy_base_url,
             "last_refresh": "2026-03-23T10:00:00Z",
         },
     )
@@ -307,7 +308,7 @@ def test_auth_add_codex_oauth_persists_pool_entry(tmp_path, monkeypatch):
     assert entry["label"] == "codex@example.com"
     assert entry["source"] == "manual:device_code"
     assert entry["refresh_token"] == "refresh-token"
-    assert entry["base_url"] == "https://chatgpt.com/backend-api/codex"
+    assert entry["base_url"] == proxy_base_url
 
 
 def test_auth_remove_reindexes_priorities(tmp_path, monkeypatch):
@@ -1144,6 +1145,7 @@ def test_auth_add_codex_clears_suppression_marker(tmp_path, monkeypatch):
     }))
 
     token = _jwt_with_email("codex@example.com")
+    proxy_base_url = "http://127.0.0.1:43128"
     monkeypatch.setattr(
         "hermes_cli.auth._codex_device_code_login",
         lambda: {
@@ -1151,7 +1153,7 @@ def test_auth_add_codex_clears_suppression_marker(tmp_path, monkeypatch):
                 "access_token": token,
                 "refresh_token": "refreshed",
             },
-            "base_url": "https://chatgpt.com/backend-api/codex",
+            "base_url": proxy_base_url,
             "last_refresh": "2026-01-01T00:00:00Z",
         },
     )

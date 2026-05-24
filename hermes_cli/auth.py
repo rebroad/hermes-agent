@@ -48,6 +48,7 @@ import httpx
 import yaml
 
 from hermes_cli.config import get_hermes_home, get_config_path, read_raw_config
+from hermes_cli.codex_proxy import resolve_codex_proxy_base_url
 from hermes_constants import OPENROUTER_BASE_URL, secure_parent_dir
 from utils import atomic_replace, atomic_yaml_write, is_truthy_value
 
@@ -3318,6 +3319,17 @@ def resolve_codex_runtime_credentials(
         os.getenv("HERMES_CODEX_BASE_URL", "").strip().rstrip("/")
         or DEFAULT_CODEX_BASE_URL
     )
+    proxy_base_url = resolve_codex_proxy_base_url(access_token)
+    if not proxy_base_url:
+        raise AuthError(
+            "Codex proxy is required but could not be started. "
+            "Ensure codex-responses-api-proxy is on PATH or set "
+            "HERMES_CODEX_PROXY_URL to a running proxy.",
+            provider="openai-codex",
+            code="codex_proxy_unavailable",
+            relogin_required=False,
+        )
+    base_url = proxy_base_url
 
     return {
         "provider": "openai-codex",
@@ -6216,7 +6228,16 @@ def _login_openai_codex(
                 do_import = "n"
             if do_import in {"y", "yes"}:
                 _save_codex_tokens(cli_tokens)
-                base_url = os.getenv("HERMES_CODEX_BASE_URL", "").strip().rstrip("/") or DEFAULT_CODEX_BASE_URL
+                base_url = resolve_codex_proxy_base_url(cli_tokens["access_token"])
+                if not base_url:
+                    raise AuthError(
+                        "Codex proxy is required but could not be started. "
+                        "Ensure codex-responses-api-proxy is on PATH or set "
+                        "HERMES_CODEX_PROXY_URL to a running proxy.",
+                        provider="openai-codex",
+                        code="codex_proxy_unavailable",
+                        relogin_required=False,
+                    )
                 config_path = _update_config_for_provider("openai-codex", base_url)
                 print()
                 print("Credentials imported. Note: if Codex CLI refreshes its token,")
@@ -6741,10 +6762,16 @@ def _codex_device_code_login() -> Dict[str, Any]:
         )
 
     # Return tokens for the caller to persist (no longer writes to ~/.codex/)
-    base_url = (
-        os.getenv("HERMES_CODEX_BASE_URL", "").strip().rstrip("/")
-        or DEFAULT_CODEX_BASE_URL
-    )
+    base_url = resolve_codex_proxy_base_url(access_token)
+    if not base_url:
+        raise AuthError(
+            "Codex proxy is required but could not be started. "
+            "Ensure codex-responses-api-proxy is on PATH or set "
+            "HERMES_CODEX_PROXY_URL to a running proxy.",
+            provider="openai-codex",
+            code="codex_proxy_unavailable",
+            relogin_required=False,
+        )
 
     return {
         "tokens": {

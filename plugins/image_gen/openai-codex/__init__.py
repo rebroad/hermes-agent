@@ -150,10 +150,16 @@ def _build_codex_client():
     try:
         import openai
         from agent.auxiliary_client import _codex_cloudflare_headers
+        from hermes_cli.codex_proxy import resolve_codex_proxy_base_url
+
+        base_url = resolve_codex_proxy_base_url(token)
+        if not base_url:
+            logger.debug("Could not build Codex image client: proxy unavailable")
+            return None
 
         return openai.OpenAI(
             api_key=token,
-            base_url=_CODEX_BASE_URL,
+            base_url=base_url,
             default_headers=_codex_cloudflare_headers(token),
         )
     except Exception as exc:

@@ -268,6 +268,25 @@ class TestGenerate:
         assert result["success"] is False
         assert result["error_type"] == "auth_required"
 
+    def test_build_codex_client_uses_proxy_base_url(self, monkeypatch):
+        import sys
+
+        monkeypatch.setattr(codex_plugin, "_read_codex_access_token", lambda: "codex-token")
+        monkeypatch.setattr(
+            "hermes_cli.codex_proxy.resolve_codex_proxy_base_url",
+            lambda _token: "http://127.0.0.1:43128",
+        )
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        monkeypatch.setitem(sys.modules, "openai", MagicMock(OpenAI=MagicMock(return_value=mock_client)))
+
+        client = codex_plugin._build_codex_client()
+
+        assert client is not None
+        assert sys.modules["openai"].OpenAI.call_args.kwargs["base_url"] == "http://127.0.0.1:43128"
+        assert sys.modules["openai"].OpenAI.call_args.kwargs["api_key"] == "codex-token"
+
     def test_stream_exception_returns_api_error(self, provider, monkeypatch):
         monkeypatch.setattr(codex_plugin, "_read_codex_access_token", lambda: "codex-token")
 

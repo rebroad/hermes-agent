@@ -317,7 +317,8 @@ class TestCodexOAuthContextLength:
             ]
         }
 
-        with patch("agent.model_metadata.requests.get", return_value=fake_response), \
+        with patch("hermes_cli.codex_proxy.resolve_codex_proxy_base_url", return_value="http://127.0.0.1:43128"), \
+             patch("agent.model_metadata.requests.get", return_value=fake_response), \
              patch("agent.model_metadata.get_cached_context_length", return_value=None), \
              patch("agent.model_metadata.save_context_length"):
             ctx_55 = get_model_context_length(
@@ -344,7 +345,8 @@ class TestCodexOAuthContextLength:
         fake_response.status_code = 401
         fake_response.json.return_value = {}
 
-        with patch("agent.model_metadata.requests.get", return_value=fake_response), \
+        with patch("hermes_cli.codex_proxy.resolve_codex_proxy_base_url", return_value="http://127.0.0.1:43128"), \
+             patch("agent.model_metadata.requests.get", return_value=fake_response), \
              patch("agent.model_metadata.get_cached_context_length", return_value=None), \
              patch("agent.model_metadata.save_context_length"):
             ctx = get_model_context_length(
@@ -408,7 +410,8 @@ class TestCodexOAuthContextLength:
             "models": [{"slug": "gpt-5.5", "context_window": 272_000}]
         }
 
-        with patch("agent.model_metadata.requests.get", return_value=fake_response), \
+        with patch("hermes_cli.codex_proxy.resolve_codex_proxy_base_url", return_value="http://127.0.0.1:43128"), \
+             patch("agent.model_metadata.requests.get", return_value=fake_response), \
              patch("agent.model_metadata.save_context_length") as mock_save:
             ctx = mm.get_model_context_length(
                 model="gpt-5.5",
@@ -440,7 +443,8 @@ class TestCodexOAuthContextLength:
         }}))
 
         # If the invalidation incorrectly fired, this would be called; assert it isn't.
-        with patch("agent.model_metadata.requests.get") as mock_get:
+        with patch("hermes_cli.codex_proxy.resolve_codex_proxy_base_url", return_value="http://127.0.0.1:43128"), \
+             patch("agent.model_metadata.requests.get") as mock_get:
             ctx = mm.get_model_context_length(
                 model="gpt-5.5",
                 base_url=base_url,

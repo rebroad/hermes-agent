@@ -1065,15 +1065,23 @@ def _resolve_explicit_runtime(
         }
 
     if provider == "openai-codex":
-        base_url = explicit_base_url or DEFAULT_CODEX_BASE_URL
         api_key = explicit_api_key
         last_refresh = None
         if not api_key:
             creds = resolve_codex_runtime_credentials()
             api_key = creds.get("api_key", "")
             last_refresh = creds.get("last_refresh")
-            if not explicit_base_url:
-                base_url = creds.get("base_url", "").rstrip("/") or base_url
+        from hermes_cli.codex_proxy import resolve_codex_proxy_base_url
+        base_url = resolve_codex_proxy_base_url(api_key)
+        if not base_url:
+            raise AuthError(
+                "Codex proxy is required but could not be started. "
+                "Ensure codex-responses-api-proxy is on PATH or set "
+                "HERMES_CODEX_PROXY_URL to a running proxy.",
+                provider="openai-codex",
+                code="codex_proxy_unavailable",
+                relogin_required=False,
+            )
         return {
             "provider": "openai-codex",
             "api_mode": "codex_responses",
