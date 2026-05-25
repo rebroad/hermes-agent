@@ -68,6 +68,10 @@ def get_gateway_script_path() -> str:
     """Get the path to this script."""
     return str(Path(__file__).resolve())
 
+def get_hermes_wrapper_path() -> str:
+    """Get the path to the shell wrapper that starts Hermes via the proxy."""
+    return str(Path.home() / "bin" / "hermes")
+
 
 # =============================================================================
 # Systemd Service (Linux)
@@ -76,7 +80,8 @@ def get_gateway_script_path() -> str:
 def generate_systemd_unit() -> str:
     """Generate the systemd unit file content."""
     python_path = get_python_path()
-    script_path = get_gateway_script_path()
+    hermes_path = get_hermes_wrapper_path()
+    hermes_real_bin = str(Path(python_path).with_name("hermes"))
     working_dir = str(PROJECT_DIR)
     
     return f"""[Unit]
@@ -87,8 +92,9 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart={python_path} {script_path} run
+ExecStart={hermes_path} gateway run
 WorkingDirectory={working_dir}
+Environment="HERMES_REAL_BIN={hermes_real_bin}"
 Restart=on-failure
 RestartSec=30
 StandardOutput=journal

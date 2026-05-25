@@ -315,6 +315,13 @@ class TestGeneratedSystemdUnits:
         timeout = int(max(60, DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT) + 30)
         return f"TimeoutStopSec={timeout}"
 
+    def test_user_unit_launches_via_proxy_wrapper(self, monkeypatch):
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/home/alice")))
+
+        unit = gateway_cli.generate_systemd_unit(system=False)
+
+        assert "ExecStart=/home/alice/bin/hermes gateway run --replace" in unit
+
     def test_user_unit_avoids_recursive_execstop_and_uses_extended_stop_timeout(self, monkeypatch):
         monkeypatch.setattr(
             gateway_cli,

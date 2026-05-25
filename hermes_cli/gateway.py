@@ -2139,6 +2139,11 @@ def _build_service_path_dirs(project_root: Path | None = None) -> list[str]:
     return candidates
 
 
+def _hermes_proxy_wrapper_path(home: Path | None = None) -> Path:
+    """Return the shell wrapper that starts Hermes through the Codex proxy."""
+    return (home or Path.home()) / "bin" / "hermes"
+
+
 def generate_systemd_unit(system: bool = False, run_as_user: str | None = None) -> str:
     python_path = get_python_path()
     working_dir = str(PROJECT_ROOT)
@@ -2213,6 +2218,8 @@ WantedBy=multi-user.target
 
     hermes_home = str(get_hermes_home().resolve())
     profile_arg = _profile_arg(hermes_home)
+    hermes_launcher = str(_hermes_proxy_wrapper_path())
+    hermes_real_bin = str(Path(python_path).with_name("hermes"))
     path_entries.extend(_build_user_local_paths(Path.home(), path_entries))
     path_entries.extend(_build_wsl_interop_paths(path_entries))
     path_entries.extend(common_bin_paths)
@@ -2225,10 +2232,11 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart={python_path} -m hermes_cli.main{f" {profile_arg}" if profile_arg else ""} gateway run --replace
+ExecStart={hermes_launcher}{f" {profile_arg}" if profile_arg else ""} gateway run --replace
 WorkingDirectory={working_dir}
 Environment="PATH={sane_path}"
 Environment="VIRTUAL_ENV={venv_dir}"
+Environment="HERMES_REAL_BIN={hermes_real_bin}"
 Environment="HERMES_HOME={hermes_home}"
 Restart=always
 RestartSec=5
